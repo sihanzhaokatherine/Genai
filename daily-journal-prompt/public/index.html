@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Journal Prompt (OpenAI)</title>
+  <style>
+    :root { --fg:#111; --bg:#fafafa; --card:#fff; --muted:#667085; }
+    *{box-sizing:border-box} body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--fg);background:var(--bg)}
+    .wrap{max-width:720px;margin:40px auto;padding:0 20px}
+    .card{background:var(--card);border:1px solid #eee;border-radius:16px;padding:24px;box-shadow:0 4px 16px rgba(0,0,0,.04)}
+    h1{margin:0 0 8px} .muted{color:var(--muted)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+    button{cursor:pointer;border:none;padding:12px 16px;border-radius:12px;font-weight:600}
+    .primary{background:#1f7aec;color:#fff} .secondary{background:#eef2f7}
+    .prompt{font-size:1.2rem;line-height:1.6;margin-top:8px;min-height:2.4em}
+    select{padding:10px;border-radius:10px;border:1px solid #e5e7eb}
+    textarea{width:100%;min-height:160px;padding:12px;margin-top:16px;border-radius:12px;border:1px solid #e5e7eb}
+    .small{font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Daily Journal Prompt</h1>
+      <p class="muted small">One prompt per day (saved locally). Choose a category and click “Get Today’s Prompt.”</p>
+
+      <div class="row">
+        <select id="category">
+          <option value="">Any category</option>
+          <option>gratitude</option>
+          <option>growth</option>
+          <option>relationships</option>
+          <option>creativity</option>
+          <option>career</option>
+          <option>wellbeing</option>
+        </select>
+        <button id="btn-today" class="primary">Get Today’s Prompt</button>
+        <button id="btn-new" class="secondary" title="Bypass the daily lock">New Prompt Anyway</button>
+      </div>
+
+      <div id="output" class="prompt"></div>
+      <textarea id="journal" placeholder="Write your reflection here…"></textarea>
+      <div class="muted small">Your writing stays on this device via localStorage.</div>
+    </div>
+  </div>
+
+  <script>
+    const today = () => new Date().toISOString().slice(0,10);
+    const K_DATE = 'djp.date';
+    const K_PROMPT = 'djp.prompt';
+    const K_ENTRY_PREFIX = 'djp.entry.';
+
+    const out   = document.getElementById('output');
+    const area  = document.getElementById('journal');
+    const catEl = document.getElementById('category');
+
+    function loadCached() {
+      if (localStorage.getItem(K_DATE) === today()) {
+        const p = localStorage.getItem(K_PROMPT);
+        if (p) return JSON.parse(p);
+      }
+      return null;
+    }
+    function savePrompt(prompt) {
+      localStorage.setItem(K_DATE, today());
+      localStorage.setItem(K_PROMPT, JSON.stringify({ prompt }));
+    }
+    function renderPrompt(prompt) { out.textContent = prompt; }
+    function loadEntry() {
+      area.value = localStorage.getItem(K_ENTRY_PREFIX + today()) || '';
+    }
+    function saveEntry() {
+      localStorage.setItem(K_ENTRY_PREFIX + today(), area.value || '');
+    }
+
+    async function fetchPrompt(forceNew=false) {
+      if (!forceNew) {
+        const cached = loadCached();
+        if (cached) { renderPrompt(cached.prompt); loadEntry(); return; }
+      }
+      out.textContent = 'Thinking…';
+      const category = catEl.value || '';
+      const res = await fetch('/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category })
+      });
+      const data = await res.json();
+      const prompt = data?.prompt || 'What did you learn about yourself today?';
+      savePrompt(prompt);
+      renderPrompt(prompt);
+      loadEntry();
+    }
+
+    document.getElementById('btn-today').addEventListener('click', () => fetchPrompt(false));
+    document.getElementById('btn-new').addEventListener('click',   () => fetchPrompt(true));
+    area.addEventListener('input', saveEntry);
+
+    // autoload
+    fetchPrompt(false);
+  </script>
+</body>
+</html>
